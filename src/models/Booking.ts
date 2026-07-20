@@ -41,13 +41,15 @@ export const getUserBookings = async (userId: string) => {
 };
 
 export const getAllBookings = async (page = 1, limit = 20) => {
-  const total = await bookingsCollection.countDocuments();
-  const bookings = await bookingsCollection
-    .find()
-    .sort({ createdAt: -1 })
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .toArray();
+  const [total, bookings] = await Promise.all([
+    bookingsCollection.countDocuments(),
+    bookingsCollection
+      .find()
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+  ]);
   return { bookings, total, page, totalPages: Math.ceil(total / limit) };
 };
 
@@ -61,17 +63,20 @@ export const getBookingStats = async (userId?: string) => {
     matchFilter.userId = userId;
   }
 
-  const totalBookings = await bookingsCollection.countDocuments(matchFilter);
-  const confirmedBookings = await bookingsCollection.countDocuments({
-    ...matchFilter,
-    status: "confirmed",
-  });
-  const totalRevenue = await bookingsCollection
-    .aggregate([
-      { $match: { status: "confirmed", ...(userId ? { userId } : {}) } },
-      { $group: { _id: null, total: { $sum: "$totalPrice" } } },
-    ])
-    .toArray();
+  const [totalBookings, confirmedBookings, totalRevenue] = await Promise.all([
+    bookingsCollection.countDocuments(matchFilter),
+    bookingsCollection.countDocuments({
+      ...matchFilter,
+      status: "confirmed",
+    }),
+    bookingsCollection
+      .aggregate([
+        { $match: { status: "confirmed", ...(userId ? { userId } : {}) } },
+        { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+      ])
+      .toArray(),
+  ]);
+
   return {
     totalBookings,
     confirmedBookings,

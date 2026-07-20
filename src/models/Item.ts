@@ -57,6 +57,11 @@ export const countItems = async (filter: Record<string, any> = {}) => {
   return itemsCollection.countDocuments(filter);
 };
 
+// Utility to safely escape special regex characters in search strings
+function escapeRegex(text: string): string {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
 export const getItems = async ({
   search,
   category,
@@ -80,11 +85,12 @@ export const getItems = async ({
 }) => {
   const filter: Record<string, any> = {};
 
-  if (search) {
+  if (search && search.trim()) {
+    const safeSearch = escapeRegex(search.trim());
     filter.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { shortDescription: { $regex: search, $options: "i" } },
-      { location: { $regex: search, $options: "i" } },
+      { title: { $regex: safeSearch, $options: "i" } },
+      { shortDescription: { $regex: safeSearch, $options: "i" } },
+      { location: { $regex: safeSearch, $options: "i" } },
     ];
   }
 
@@ -105,13 +111,16 @@ export const getItems = async ({
   const sortField = sortBy || "createdAt";
   const sortDir = sortOrder || -1;
 
-  const total = await itemsCollection.countDocuments(filter);
-  const items = await itemsCollection
-    .find(filter)
-    .sort({ [sortField]: sortDir } as any)
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .toArray();
+  // Run total count and item pagination query concurrently in parallel
+  const [total, items] = await Promise.all([
+    itemsCollection.countDocuments(filter),
+    itemsCollection
+      .find(filter)
+      .sort({ [sortField]: sortDir } as any)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+  ]);
 
   return {
     items,

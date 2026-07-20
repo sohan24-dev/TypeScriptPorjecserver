@@ -37,12 +37,14 @@ export const countUsers = async () => {
 };
 
 export const getAllUsers = async (page = 1, limit = 50) => {
-  const total = await usersCollection.countDocuments();
-  const users = await usersCollection
-    .find({}, { projection: { password: 0 } })
-    .sort({ createdAt: -1 })
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .toArray();
+  const [total, users] = await Promise.all([
+    usersCollection.countDocuments(),
+    usersCollection
+      .find({}, { projection: { password: 0 } })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+  ]);
   return { users, total, page, totalPages: Math.ceil(total / limit) };
 };
